@@ -1,6 +1,8 @@
 mod dts_parser;
 mod extlinux_parser;
 
+use regex::Regex;
+
 use std::process::Command;
 use std::fs::OpenOptions;
 use std::io::{Read, Write};
@@ -11,14 +13,43 @@ use extlinux_parser::Extlinux;
 fn main() {
     // check module type
     print!("Check Jetson module... ");
-
-    println!("OK");
+    let mut model = OpenOptions::new().read(true).open("/proc/device-tree/model").expect("Error : Cannot identify Jetson module type");
+    let mut model_string = String::new();
+    model.read_to_string(&mut model_string).expect("Error : Cannot read from /proc/device-tree/model");
+    
+    match model_string.find("Orin") {
+        Some(_) => {
+            println!("{model_string}");
+        },
+        None => {
+            if model_string.find("Xavier").is_some() {
+                println!("NVIDIA Jetson Xavier NX");
+                println!("Jetson Xavier NX module does not require device-tree patch.");
+            } else {
+                println!("Unknown Device");
+                println!("Cannot identify Jetson module type. Setup aborted.");
+            }
+            return;
+        }
+    }
 
     // check l4t type
     print!("Check L4T version... ");
+    let mut nv_tegra_release = OpenOptions::new().read(true).open("/etc/nv_tegra_release").expect("Error : Cannot identify Jetson Linux version");
+    let mut release_string = String::new();
+    nv_tegra_release.read_to_string(&mut release_string).expect("Error : Cannot read from /etc/nv_tegra_release");
 
-    println!("OK");
-
+    let re = Regex::new(r"^# R(?P<main>\d*) (release), REVISION: (?P<rev>[^,]*),").unwrap();
+    match re.captures(&release_string) {
+        Some(caps) => {
+            println!("Jetson Linux R{}.{}", &caps["main"], &caps["rev"]);
+        },
+        None => {
+            println!("Error : Cannot parse Jetson Linux version from /etc/nv_tegra_release");
+            return;
+        }
+    }
+    
     // read extlinux and parse fdt path from default entry
     print!("Read boot entries... ");
     let extlinux = Extlinux::load("/boot/extlinux/extlinux.conf");
@@ -67,6 +98,9 @@ fn main() {
 
     let rbpcv3_imx477_a_1a = cam_i2c0.find_childnode("rbpcv3_imx477_a@1a").unwrap();
 
+    rbpcv3_imx477_a_1a.find_property("status").unwrap()
+                    .value = Some("\"okay\"".to_string());
+
     rbpcv3_imx477_a_1a.find_childnode("mode0").unwrap()
                     .find_property("tegra_sinterface").unwrap()
                     .value = Some("\"serial_a\"".to_string());
@@ -108,6 +142,13 @@ fn main() {
                     .find_childnode("endpoint").unwrap()
                     .find_property("port-index").unwrap()
                     .value = Some("<0x00>".to_string());
+
+    let rbpcv3_imx477_c_1a = root.find_childnode("cam_i2cmux").unwrap()
+                    .find_childnode("i2c@1").unwrap()
+                    .find_childnode("rbpcv3_imx477_c@1a").unwrap();
+    
+    rbpcv3_imx477_c_1a.find_property("status").unwrap()
+                    .value = Some("\"okay\"".to_string());
 
     // apply root to new dts file
     let patched = root.stringify(0);
