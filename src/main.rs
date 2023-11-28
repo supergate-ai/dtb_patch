@@ -39,10 +39,10 @@ fn main() {
     let mut release_string = String::new();
     nv_tegra_release.read_to_string(&mut release_string).expect("Error : Cannot read from /etc/nv_tegra_release");
 
-    let re = Regex::new(r"^# R(?P<main>\d*) (release), REVISION: (?P<rev>[^,]*),").unwrap();
+    let re = Regex::new(r"^# R(\d*) \(release\), REVISION: ([^,]*),").unwrap();
     match re.captures(&release_string) {
         Some(caps) => {
-            println!("Jetson Linux R{}.{}", &caps["main"], &caps["rev"]);
+            println!("Jetson Linux {}.{}", &caps[1], &caps[2]);
         },
         None => {
             println!("Error : Cannot parse Jetson Linux version from /etc/nv_tegra_release");
