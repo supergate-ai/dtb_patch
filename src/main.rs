@@ -10,25 +10,38 @@ use std::io::{Read, Write};
 use dts_parser::node::DtbNode;
 use extlinux_parser::Extlinux;
 
+enum ModelType {
+    Orin,
+    Xavier,
+    Unknown
+}
+
 fn main() {
+    use ModelType::*;
+
     // check module type
     print!("Check Jetson module... ");
     let mut model = OpenOptions::new().read(true).open("/proc/device-tree/model").expect("Error : Cannot identify Jetson module type");
     let mut model_string = String::new();
     model.read_to_string(&mut model_string).expect("Error : Cannot read from /proc/device-tree/model");
     
-    match model_string.find("Orin") {
-        Some(_) => {
+    let model_type = match model_string.find("Orin") {
+        Some(_) => Orin,
+        None => {
+            match model_string.find("Xavier") {
+                Some(_) => Xavier,
+                _ => Unknown,
+            }
+        }
+    };
+
+    match model_type {
+        Orin | Xavier => {
             println!("{model_string}");
         },
-        None => {
-            if model_string.find("Xavier").is_some() {
-                println!("NVIDIA Jetson Xavier NX");
-                println!("Jetson Xavier NX module does not require device-tree patch.");
-            } else {
-                println!("Unknown Device");
-                println!("Cannot identify Jetson module type. Setup aborted.");
-            }
+        Unknown => {
+            println!("Unknown Device");
+            println!("Cannot identify Jetson module type. Setup aborted.");
             return;
         }
     }
@@ -49,7 +62,7 @@ fn main() {
             return;
         }
     }
-    
+
     // read extlinux and parse fdt path from default entry
     print!("Read boot entries... ");
     let extlinux = Extlinux::load("/boot/extlinux/extlinux.conf");
@@ -92,63 +105,81 @@ fn main() {
 
     println!("OK");
 
-    // patch csi camera node
-    let cam_i2c0 = root.find_childnode("cam_i2cmux").unwrap()
-                        .find_childnode("i2c@0").unwrap();
+    match model_type {
+        Orin => {
+            // patch csi camera node
+            let cam_i2c0 = root.find_childnode("cam_i2cmux").unwrap()
+            .find_childnode("i2c@0").unwrap();
 
-    let rbpcv3_imx477_a_1a = cam_i2c0.find_childnode("rbpcv3_imx477_a@1a").unwrap();
+            let rbpcv3_imx477_a_1a = cam_i2c0.find_childnode("rbpcv3_imx477_a@1a").unwrap();
 
-    rbpcv3_imx477_a_1a.find_property("status").unwrap()
-                    .value = Some("\"okay\"".to_string());
+            rbpcv3_imx477_a_1a.find_property("status").unwrap()
+            .value = Some("\"okay\"".to_string());
 
-    rbpcv3_imx477_a_1a.find_childnode("mode0").unwrap()
-                    .find_property("tegra_sinterface").unwrap()
-                    .value = Some("\"serial_a\"".to_string());
+            rbpcv3_imx477_a_1a.find_childnode("mode0").unwrap()
+            .find_property("tegra_sinterface").unwrap()
+            .value = Some("\"serial_a\"".to_string());
 
-    rbpcv3_imx477_a_1a.find_childnode("mode1").unwrap()
-                    .find_property("tegra_sinterface").unwrap()
-                    .value = Some("\"serial_a\"".to_string());
+            rbpcv3_imx477_a_1a.find_childnode("mode1").unwrap()
+            .find_property("tegra_sinterface").unwrap()
+            .value = Some("\"serial_a\"".to_string());
 
-    rbpcv3_imx477_a_1a.find_childnode("ports").unwrap()
-                    .find_childnode("port@0").unwrap()
-                    .find_childnode("endpoint").unwrap()
-                    .find_property("port-index").unwrap()
-                    .value = Some("<0x00>".to_string());
+            rbpcv3_imx477_a_1a.find_childnode("ports").unwrap()
+            .find_childnode("port@0").unwrap()
+            .find_childnode("endpoint").unwrap()
+            .find_property("port-index").unwrap()
+            .value = Some("<0x00>".to_string());
 
-    let rbpcv2_imx219_a_10 = cam_i2c0.find_childnode("rbpcv2_imx219_a@10").unwrap();
+            let rbpcv2_imx219_a_10 = cam_i2c0.find_childnode("rbpcv2_imx219_a@10").unwrap();
 
-    rbpcv2_imx219_a_10.find_childnode("mode0").unwrap()
-                    .find_property("tegra_sinterface").unwrap()
-                    .value = Some("\"serial_a\"".to_string());
+            rbpcv2_imx219_a_10.find_childnode("mode0").unwrap()
+            .find_property("tegra_sinterface").unwrap()
+            .value = Some("\"serial_a\"".to_string());
 
-    rbpcv2_imx219_a_10.find_childnode("mode1").unwrap()
-                    .find_property("tegra_sinterface").unwrap()
-                    .value = Some("\"serial_a\"".to_string());
+            rbpcv2_imx219_a_10.find_childnode("mode1").unwrap()
+            .find_property("tegra_sinterface").unwrap()
+            .value = Some("\"serial_a\"".to_string());
 
-    rbpcv2_imx219_a_10.find_childnode("mode2").unwrap()
-                    .find_property("tegra_sinterface").unwrap()
-                    .value = Some("\"serial_a\"".to_string());
+            rbpcv2_imx219_a_10.find_childnode("mode2").unwrap()
+            .find_property("tegra_sinterface").unwrap()
+            .value = Some("\"serial_a\"".to_string());
 
-    rbpcv2_imx219_a_10.find_childnode("mode3").unwrap()
-                    .find_property("tegra_sinterface").unwrap()
-                    .value = Some("\"serial_a\"".to_string());
+            rbpcv2_imx219_a_10.find_childnode("mode3").unwrap()
+            .find_property("tegra_sinterface").unwrap()
+            .value = Some("\"serial_a\"".to_string());
 
-    rbpcv2_imx219_a_10.find_childnode("mode4").unwrap()
-                    .find_property("tegra_sinterface").unwrap()
-                    .value = Some("\"serial_a\"".to_string());
+            rbpcv2_imx219_a_10.find_childnode("mode4").unwrap()
+            .find_property("tegra_sinterface").unwrap()
+            .value = Some("\"serial_a\"".to_string());
 
-    rbpcv2_imx219_a_10.find_childnode("ports").unwrap()
-                    .find_childnode("port@0").unwrap()
-                    .find_childnode("endpoint").unwrap()
-                    .find_property("port-index").unwrap()
-                    .value = Some("<0x00>".to_string());
+            rbpcv2_imx219_a_10.find_childnode("ports").unwrap()
+            .find_childnode("port@0").unwrap()
+            .find_childnode("endpoint").unwrap()
+            .find_property("port-index").unwrap()
+            .value = Some("<0x00>".to_string());
 
-    let rbpcv3_imx477_c_1a = root.find_childnode("cam_i2cmux").unwrap()
-                    .find_childnode("i2c@1").unwrap()
-                    .find_childnode("rbpcv3_imx477_c@1a").unwrap();
-    
-    rbpcv3_imx477_c_1a.find_property("status").unwrap()
-                    .value = Some("\"okay\"".to_string());
+            let rbpcv3_imx477_c_1a = root.find_childnode("cam_i2cmux").unwrap()
+            .find_childnode("i2c@1").unwrap()
+            .find_childnode("rbpcv3_imx477_c@1a").unwrap();
+
+            rbpcv3_imx477_c_1a.find_property("status").unwrap()
+            .value = Some("\"okay\"".to_string());
+        },
+        Xavier => {
+            match root.find_childnode("sdhci@3440000") {
+                Some(sdhci) => {
+                    let status = sdhci.find_property("status").expect("Error : sdhci has no property \"status\"");
+                    status.value = Some("\"okay\"".to_string());
+                },
+                None => {
+                    panic!("Error : Cannot find sdhci node from device tree");
+                }
+            }
+        },
+        Unknown => {
+            panic!();
+        }
+    }    
 
     // apply root to new dts file
     let patched = root.stringify(0);
