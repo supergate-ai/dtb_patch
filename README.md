@@ -1,4 +1,4 @@
-## SG-xxxx 캐리어보드 디바이스트리 자동 설정 프로그램
+## SG-ONX-DEV-001, SG-JNX-DEV-001 캐리어보드 디바이스트리 자동 설정 프로그램
 
 NVIDIA Jetson Xavier NX 모듈을 사용중인 경우 SD카드 슬롯 활성화를 위해 디바이스 트리 수정이 필요합니다.
 NVIDIA Jetson Orin NX / Nano 모듈을 사용중인 경우 Jetson Xavier NX 모듈과 달리 CSI0, CSI1 핀의 레인 스왑으로 인해 디바이스 트리 수정이 필요합니다.
